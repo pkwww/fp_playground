@@ -1,5 +1,7 @@
+module PkwParser where
+
 import Control.Monad
-import Control.Applicative
+import Control.Applicative hiding (many)
 
 data Parser a = P (String -> [(a, String)])
 
@@ -34,9 +36,9 @@ choice :: Parser a -> Parser a -> Parser a
 p `choice` q = P $ \inp -> parse p inp ++ parse q inp
 
 (+++) :: Parser a -> Parser a -> Parser a
-p +++ q = P $ \inp -> case parse (p <|> q) inp of
+p +++ q = P $ \input -> case parse (p <|> q) input of
                         [] -> []
-                        (x:xs) -> [x]
+                        (x:_) -> [x]
 
 seq :: Parser a -> Parser b -> Parser (a, b)
 p `seq` q = do { x <- p
@@ -44,7 +46,7 @@ p `seq` q = do { x <- p
                ; return (x, y) }
 
 item :: Parser Char
-item = P $ \inp -> case inp of
+item = P $ \input -> case input of
                     [] -> []
                     (x:xs) -> [(x, xs)]
 
@@ -75,6 +77,31 @@ letter = lower <|> upper
 
 alphanum :: Parser Char
 alphanum = digit <|> letter
+
+word :: Parser String
+word = neword <|> return ""
+        where neword = do { x <- letter
+                          ; xs <- word
+                          ; return (x:xs)}
+
+word' :: Parser String
+word' = many letter
+
+many :: Parser a -> Parser [a]
+many p = many1 p <|> return []
+
+many1 :: Parser a -> Parser [a]
+many1 p = do { x <- p
+             ; xs <- many p
+             ; return (x:xs)}
+
+chainl :: Parser a -> Parser (a -> a -> a) -> a -> Parser a
+chainl p op a = p `chainl1` op <|> return a
+
+chainl1 :: Parser a -> Parser (a -> a -> a) -> Parser a
+p `chainl1` op = do { a <- p; rest a }
+                 where
+                    rest a = do { f <- op; b <- p; rest (f a b) } <|> return a
 
 first_third :: Parser (Char, Char)
 first_third = do { x <- item
